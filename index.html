@@ -2014,8 +2014,8 @@
                 <input type="radio" name="authTab" id="tabLogin" class="auth-radio" checked>
                 <input type="radio" name="authTab" id="tabRegister" class="auth-radio">
                 <div class="auth-tabs">
-                    <label for="tabLogin" class="auth-tab tab-login">Ingresar</label>
-                    <label for="tabRegister" class="auth-tab tab-register">Registrarse</label>
+                    <label for="tabLogin" class="auth-tab tab-login" data-tab="login">Ingresar</label>
+                    <label for="tabRegister" class="auth-tab tab-register" data-tab="register">Registrarse</label>
                 </div>
 
                 <div id="authError" class="auth-error"></div>
@@ -2474,7 +2474,7 @@
     </div>
 
     <script>
-        // ========== SUPABASE AUTH ==========
+        // ========== SUPABASE AUTH — FIXED ==========
         const SUPABASE_URL = 'https://srwvkkndyoimbdhphfcd.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNyd3Zra25keW9pbWJkaHBoZmNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwNDk1MDAsImV4cCI6MjA3NjYyNTUwMH0.yK4kmZahE7N0o0FpyD3QXtI_c7Mc6_19BcOTgpbI1_U';
 
@@ -2483,10 +2483,10 @@
             if (window.supabase && window.supabase.createClient) {
                 supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             } else {
-                console.warn('Supabase SDK no cargó');
+                console.error('Supabase SDK no cargó');
             }
         } catch (err) {
-            console.warn('Supabase init error', err);
+            console.error('Supabase init error', err);
         }
 
         const authOverlay = document.getElementById('auth-overlay');
@@ -2498,254 +2498,336 @@
         const authSuccess = document.getElementById('authSuccess');
         const loginForm = document.getElementById('loginForm');
         const registerForm = document.getElementById('registerForm');
+        const loginBtn = document.getElementById('loginBtn');
+        const registerBtn = document.getElementById('registerBtn');
         const githubBtn = document.getElementById('githubBtn');
-
-        // Tabs - definición temprana y robusta
-        window.switchAuthTab = function(target) {
-            try {
-                document.querySelectorAll('.auth-tab').forEach(function(t) {
-                    t.classList.toggle('active', t.getAttribute('data-tab') === target);
-                });
-                var login = document.getElementById('loginForm');
-                var reg = document.getElementById('registerForm');
-                var showLogin = target === 'login';
-                if (login) login.classList.toggle('active', showLogin);
-                if (reg) reg.classList.toggle('active', !showLogin);
-                var err = document.getElementById('authError');
-                var ok = document.getElementById('authSuccess');
-                if (err) err.classList.remove('show');
-                if (ok) ok.classList.remove('show');
-            } catch (e) { console.warn(e); }
-        };
-
+        const googleBtn = document.getElementById('googleBtn');
+        const appleBtn = document.getElementById('appleBtn');
 
         function showAuthError(msg) {
-            authSuccess.classList.remove('show');
-            authError.textContent = msg;
-            authError.classList.add('show');
-        }
-        function showAuthSuccess(msg) {
-            authError.classList.remove('show');
-            authSuccess.textContent = msg;
-            authSuccess.classList.add('show');
-        }
-        function clearAuthMessages() {
-            authError.classList.remove('show');
-            authSuccess.classList.remove('show');
-        }
-
-        let introAlreadyPlayed = sessionStorage.getItem('introPlayed') === '1';
-        let currentSession = null;
-
-        function setAuthUI(session) {
-            currentSession = session;
-            if (session && session.user) {
-                document.body.classList.remove('auth-required');
-                authOverlay.classList.remove('active');
-                userBar.classList.add('visible');
-
-                const user = session.user;
-                const meta = user.user_metadata || {};
-                const name = meta.full_name || meta.name || meta.user_name || user.email?.split('@')[0] || 'Usuario';
-                userNameEl.textContent = name;
-                userEmailEl.textContent = user.email || (meta.user_name ? '@' + meta.user_name : '—');
-
-                // Después del login → reproducir intro (solo una vez por sesión de pestaña)
-                if (!introAlreadyPlayed && window.playIntroVideo) {
-                    window.playIntroVideo();
-                }
-            } else {
-                document.body.classList.add('auth-required');
-                authOverlay.classList.add('active');
-                userBar.classList.remove('visible');
-                // Asegurar que el intro no se vea si no hay sesión
-                const introEl = document.getElementById('intro-screen');
-                if (introEl) {
-                    introEl.classList.add('hide');
-                    introEl.style.display = 'none';
-                    document.body.classList.remove('intro-active');
-                }
+            if (authSuccess) authSuccess.classList.remove('show');
+            if (authError) {
+                authError.textContent = msg || 'Ocurrió un error.';
+                authError.classList.add('show');
             }
         }
 
-        // Tabs login / register
+        function showAuthSuccess(msg) {
+            if (authError) authError.classList.remove('show');
+            if (authSuccess) {
+                authSuccess.textContent = msg || '';
+                authSuccess.classList.add('show');
+            }
+        }
+
+        function clearAuthMessages() {
+            if (authError) authError.classList.remove('show');
+            if (authSuccess) authSuccess.classList.remove('show');
+        }
+
+        // Cambia entre Login y Registro.
         window.switchAuthTab = function(target) {
-            document.querySelectorAll('.auth-tab').forEach(t => {
-                t.classList.toggle('active', t.dataset.tab === target);
-            });
             const showLogin = target === 'login';
+            document.querySelectorAll('.auth-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === target);
+            });
             if (loginForm) loginForm.classList.toggle('active', showLogin);
             if (registerForm) registerForm.classList.toggle('active', !showLogin);
             clearAuthMessages();
         };
-        // Delegación en el contenedor (más confiable en móvil)
-        const authBox = document.querySelector('.auth-box');
-        if (authBox) {
-            authBox.addEventListener('click', function(e) {
-                const tab = e.target.closest('.auth-tab');
-                if (!tab) return;
-                e.preventDefault();
-                window.switchAuthTab(tab.getAttribute('data-tab'));
-            });
-        }
-        document.querySelectorAll('.auth-tab').forEach(tab => tab.setAttribute('type', 'button'));
-        /* display lo maneja .auth-form.active en CSS */
 
-        // Efecto vidrio roto al tocar inputs
+        // Los labels de las pestañas tienen data-tab. También dejamos soporte
+        // para el cambio mediante los radios existentes.
+        document.querySelectorAll('.auth-tab').forEach(tab => {
+            tab.addEventListener('click', e => {
+                e.preventDefault();
+                window.switchAuthTab(tab.dataset.tab);
+            });
+        });
+
+        // Si el HTML/CSS usa los radios, sincronizarlos también.
+        const tabLogin = document.getElementById('tabLogin');
+        const tabRegister = document.getElementById('tabRegister');
+        if (tabLogin) tabLogin.addEventListener('change', () => {
+            if (tabLogin.checked) window.switchAuthTab('login');
+        });
+        if (tabRegister) tabRegister.addEventListener('change', () => {
+            if (tabRegister.checked) window.switchAuthTab('register');
+        });
+
+        // Efecto vidrio roto al enfocar inputs.
         document.querySelectorAll('.auth-input').forEach(input => {
             input.addEventListener('focus', () => {
                 const wrap = input.closest('.auth-input-wrap');
                 if (!wrap) return;
                 wrap.classList.remove('shatter');
-                void wrap.offsetWidth; // reflow
+                void wrap.offsetWidth;
                 wrap.classList.add('shatter');
                 setTimeout(() => wrap.classList.remove('shatter'), 700);
             });
         });
 
-        // Login email/password
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            clearAuthMessages();
-            if (!supabase) { showAuthError('Auth no disponible. Revisá la conexión.'); return; }
-            const email = document.getElementById('loginEmail').value.trim();
-            const password = document.getElementById('loginPassword').value;
-            const btn = document.getElementById('loginBtn');
-            btn.disabled = true;
-            btn.textContent = 'Ingresando...';
+        let introAlreadyPlayed = sessionStorage.getItem('introPlayed') === '1';
+        let currentSession = null;
 
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-            btn.disabled = false;
-            btn.textContent = 'Ingresar';
+        // Entra realmente al software y elimina el overlay de autenticación.
+        function enterSoftware(session) {
+            currentSession = session || null;
+            if (!session || !session.user) return;
 
-            if (error) {
-                showAuthError(error.message === 'Invalid login credentials'
-                    ? 'Email o contraseña incorrectos'
-                    : error.message);
-                return;
-            }
-            setAuthUI(data.session);
-        });
+            document.body.classList.remove('auth-required');
+            document.body.classList.remove('intro-active');
 
-        // Register
-        registerForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            clearAuthMessages();
-            if (!supabase) { showAuthError('Auth no disponible. Revisá la conexión.'); return; }
-            const name = document.getElementById('registerName').value.trim();
-            const email = document.getElementById('registerEmail').value.trim();
-            const password = document.getElementById('registerPassword').value;
-            const btn = document.getElementById('registerBtn');
-            btn.disabled = true;
-            btn.textContent = 'Creando...';
-
-            const { data, error } = await supabase.auth.signUp({
-                email,
-                password,
-                options: {
-                    data: { full_name: name || undefined }
-                }
-            });
-            btn.disabled = false;
-            btn.textContent = 'Crear cuenta';
-
-            if (error) {
-                showAuthError(error.message);
-                return;
+            if (authOverlay) {
+                authOverlay.classList.remove('active');
+                authOverlay.style.opacity = '0';
+                authOverlay.style.visibility = 'hidden';
+                authOverlay.style.pointerEvents = 'none';
+                authOverlay.style.display = 'none';
             }
 
-            if (data.session) {
-                // Confirmación desactivada → ya está logueado
-                setAuthUI(data.session);
+            if (userBar) userBar.classList.add('visible');
+
+            const user = session.user;
+            const meta = user.user_metadata || {};
+            const name = meta.full_name || meta.name || meta.user_name ||
+                         (user.email ? user.email.split('@')[0] : 'Usuario');
+
+            if (userNameEl) userNameEl.textContent = name;
+            if (userEmailEl) userEmailEl.textContent = user.email || '—';
+
+            // El software es la app principal del documento.
+            const app = document.querySelector('.app');
+            if (app) {
+                app.style.display = '';
+                app.style.visibility = 'visible';
+                app.style.opacity = '1';
+            }
+
+            // Intro opcional después del login. Si se quiere entrar directamente,
+            // se omite cuando ya fue reproducida en esta pestaña.
+            if (!introAlreadyPlayed && typeof window.playIntroVideo === 'function') {
+                window.playIntroVideo();
+            }
+        }
+
+        function setAuthUI(session) {
+            currentSession = session || null;
+
+            if (session && session.user) {
+                enterSoftware(session);
             } else {
-                showAuthSuccess('Cuenta creada. Revisá tu email para confirmar (si está activado).');
-            }
-        });
+                document.body.classList.add('auth-required');
+                document.body.classList.remove('intro-active');
 
-        // GitHub OAuth
-        githubBtn.addEventListener('click', async () => {
-            clearAuthMessages();
-            if (!supabase) { showAuthError('Auth no disponible'); return; }
-            githubBtn.disabled = true;
-            const { error } = await supabase.auth.signInWithOAuth({
-                provider: 'github',
-                options: {
-                    redirectTo: window.location.origin + window.location.pathname
+                if (authOverlay) {
+                    authOverlay.classList.add('active');
+                    authOverlay.style.display = 'block';
+                    authOverlay.style.opacity = '1';
+                    authOverlay.style.visibility = 'visible';
+                    authOverlay.style.pointerEvents = 'auto';
+                }
+
+                if (userBar) userBar.classList.remove('visible');
+            }
+        }
+
+        // LOGIN EMAIL / PASSWORD
+        if (loginForm) {
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                clearAuthMessages();
+
+                if (!supabase) {
+                    showAuthError('Supabase no está disponible. Revisá la conexión.');
+                    return;
+                }
+
+                const email = document.getElementById('loginEmail')?.value.trim();
+                const password = document.getElementById('loginPassword')?.value || '';
+
+                if (!email || !password) {
+                    showAuthError('Ingresá tu email y contraseña.');
+                    return;
+                }
+
+                if (loginBtn) {
+                    loginBtn.disabled = true;
+                    loginBtn.textContent = 'Ingresando...';
+                }
+
+                try {
+                    const { data, error } = await supabase.auth.signInWithPassword({
+                        email,
+                        password
+                    });
+
+                    if (error) throw error;
+
+                    // Entrar inmediatamente al software.
+                    if (data?.session) {
+                        enterSoftware(data.session);
+                    } else {
+                        const { data: sessionData } = await supabase.auth.getSession();
+                        if (sessionData?.session) enterSoftware(sessionData.session);
+                        else showAuthError('Login realizado, pero no se recibió una sesión.');
+                    }
+                } catch (error) {
+                    console.error('Login error:', error);
+                    showAuthError(error?.message === 'Invalid login credentials'
+                        ? 'Email o contraseña incorrectos'
+                        : (error?.message || 'No se pudo iniciar sesión.'));
+                } finally {
+                    if (loginBtn) {
+                        loginBtn.disabled = false;
+                        loginBtn.textContent = 'Ingresar';
+                    }
                 }
             });
+        }
 
-        // Google / Gmail OAuth
-        const googleBtn = document.getElementById('googleBtn');
-        if (googleBtn) {
-            googleBtn.addEventListener('click', async () => {
+        // REGISTRO EMAIL / PASSWORD
+        if (registerForm) {
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
                 clearAuthMessages();
-                if (!supabase) { showAuthError('Auth no disponible'); return; }
-                googleBtn.disabled = true;
-                const { error } = await supabase.auth.signInWithOAuth({
-                    provider: 'google',
+
+                if (!supabase) {
+                    showAuthError('Supabase no está disponible. Revisá la conexión.');
+                    return;
+                }
+
+                const name = document.getElementById('registerName')?.value.trim() || '';
+                const email = document.getElementById('registerEmail')?.value.trim() || '';
+                const password = document.getElementById('registerPassword')?.value || '';
+
+                if (!email || !password) {
+                    showAuthError('Ingresá tu email y contraseña.');
+                    return;
+                }
+
+                if (registerBtn) {
+                    registerBtn.disabled = true;
+                    registerBtn.textContent = 'Creando...';
+                }
+
+                try {
+                    const { data, error } = await supabase.auth.signUp({
+                        email,
+                        password,
+                        options: {
+                            data: { full_name: name || undefined },
+                            emailRedirectTo: window.location.origin + window.location.pathname
+                        }
+                    });
+
+                    if (error) throw error;
+
+                    if (data?.session) {
+                        // Confirmación por email desactivada → entrar directamente.
+                        enterSoftware(data.session);
+                    } else {
+                        // Supabase exige confirmar email antes de crear una sesión.
+                        showAuthSuccess('Cuenta creada. Confirmá tu email y luego volvé a ingresar.');
+                    }
+                } catch (error) {
+                    console.error('Register error:', error);
+                    showAuthError(error?.message || 'No se pudo crear la cuenta.');
+                } finally {
+                    if (registerBtn) {
+                        registerBtn.disabled = false;
+                        registerBtn.textContent = 'Crear cuenta';
+                    }
+                }
+            });
+        }
+
+        // OAuth común para GitHub / Google / Apple.
+        async function loginWithOAuth(provider, button) {
+            clearAuthMessages();
+
+            if (!supabase) {
+                showAuthError('Supabase no está disponible.');
+                return;
+            }
+
+            if (button) button.disabled = true;
+
+            try {
+                const { data, error } = await supabase.auth.signInWithOAuth({
+                    provider,
                     options: {
                         redirectTo: window.location.origin + window.location.pathname,
-                        queryParams: {
-                            access_type: 'offline',
-                            prompt: 'consent'
-                        }
+                        ...(provider === 'google' ? {
+                            queryParams: {
+                                access_type: 'offline',
+                                prompt: 'consent'
+                            }
+                        } : {})
                     }
                 });
-                if (error) {
-                    showAuthError(error.message);
-                    googleBtn.disabled = false;
-                }
-            });
-        }
 
-        // Apple / iCloud OAuth (iOS y demás)
-        const appleBtn = document.getElementById('appleBtn');
-        if (appleBtn) {
-            appleBtn.addEventListener('click', async () => {
-                clearAuthMessages();
-                if (!supabase) { showAuthError('Auth no disponible'); return; }
-                appleBtn.disabled = true;
-                const { error } = await supabase.auth.signInWithOAuth({
-                    provider: 'apple',
-                    options: {
-                        redirectTo: window.location.origin + window.location.pathname
-                    }
-                });
-                if (error) {
-                    showAuthError(error.message);
-                    appleBtn.disabled = false;
-                }
-            });
-        }
+                if (error) throw error;
 
-
-            if (error) {
-                showAuthError(error.message);
-                githubBtn.disabled = false;
+                // Supabase redirige al proveedor. Si devuelve sesión sin redirect,
+                // también la procesamos inmediatamente.
+                if (data?.session) enterSoftware(data.session);
+            } catch (error) {
+                console.error(`${provider} OAuth error:`, error);
+                showAuthError(error?.message || `No se pudo iniciar sesión con ${provider}.`);
+                if (button) button.disabled = false;
             }
-        });
+        }
 
-        // Logout
-        logoutBtn.addEventListener('click', async () => {
-            if (supabase) await supabase.auth.signOut();
-            setAuthUI(null);
-        });
+        if (githubBtn) githubBtn.addEventListener('click', () => loginWithOAuth('github', githubBtn));
+        if (googleBtn) googleBtn.addEventListener('click', () => loginWithOAuth('google', googleBtn));
+        if (appleBtn) appleBtn.addEventListener('click', () => loginWithOAuth('apple', appleBtn));
 
-        // Escuchar cambios de sesión
-        if (supabase) supabase.auth.onAuthStateChange((_event, session) => {
-            setAuthUI(session);
-        });
+        // LOGOUT
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                try {
+                    if (supabase) await supabase.auth.signOut();
+                } finally {
+                    if (authOverlay) {
+                        authOverlay.style.display = 'block';
+                        authOverlay.style.opacity = '1';
+                        authOverlay.style.visibility = 'visible';
+                        authOverlay.style.pointerEvents = 'auto';
+                    }
+                    setAuthUI(null);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+        }
 
-        // Chequear sesión al cargar
-        (async () => {
-            if (!supabase) { setAuthUI(null); return; }
+        // Cambios de sesión: cubre login normal y retorno de OAuth.
+        if (supabase) {
+            supabase.auth.onAuthStateChange((_event, session) => {
+                if (session?.user) enterSoftware(session);
+                else setAuthUI(null);
+            });
+        }
+
+        // Recuperar sesión existente al cargar/reanudar la página.
+        (async function restoreSession() {
+            if (!supabase) {
+                setAuthUI(null);
+                return;
+            }
+
             try {
-                const { data: { session } } = await supabase.auth.getSession();
-                setAuthUI(session);
-            } catch (e) { setAuthUI(null); }
+                const { data, error } = await supabase.auth.getSession();
+                if (error) throw error;
+                setAuthUI(data?.session || null);
+            } catch (error) {
+                console.error('Session restore error:', error);
+                setAuthUI(null);
+            }
         })();
 
-                        // ========== CINEMATIC SCROLL (GSAP + ScrollTrigger) ==========
+        // ========== CINEMATIC SCROLL (GSAP + ScrollTrigger) ==========
+        
         (function() {
             var overlay = document.getElementById('auth-overlay');
             if (!overlay) return;
