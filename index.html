@@ -2655,6 +2655,11 @@
             if (!introAlreadyPlayed && typeof window.playIntroVideo === 'function') {
                 window.playIntroVideo();
             }
+
+            // Ejecutar calculadora al entrar al software
+            setTimeout(function() {
+                if (typeof window.runCalculator === 'function') window.runCalculator();
+            }, 300);
         }
 
         function setAuthUI(session) {
@@ -3423,6 +3428,231 @@
 
 
     </script>
+
+
+    <script>
+        // ========== CALCULADORA GD 2H / 3H ==========
+        (function() {
+            const inputWidth = document.getElementById('inputWidth');
+            const inputHeight = document.getElementById('inputHeight');
+            const calcBtn = document.getElementById('calcBtn');
+            const resultContent = document.getElementById('resultContent');
+            const placeholder = document.getElementById('placeholder');
+            const tbody = document.getElementById('resultTableBody');
+            const glassSize = document.getElementById('glassSize');
+            const leafSize = document.getElementById('leafSize');
+            const totalMeters = document.getElementById('totalMeters');
+            const hardwareGrid = document.getElementById('hardwareGrid');
+            const hardwareSection = document.getElementById('hardwareSection');
+            const noteSection = document.getElementById('noteSection');
+            const noteContent = document.getElementById('noteContent');
+            const mainTitle = document.getElementById('mainTitle');
+            const profileModal = document.getElementById('profileModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalImage = document.getElementById('modalImage');
+            const modalClose = document.getElementById('modalClose');
+
+            let currentMode = 2;
+
+            const profileImages = {
+                'LG044': { title: 'LG044 · Guía superior de 2 rieles', src: 'assets/LG044.jpg' },
+                'LG159': { title: 'LG159 · Guía inferior (ventana)', src: 'assets/LG159.jpg' },
+                'LG124': { title: 'LG124 · Marco lateral (jamba)', src: 'assets/LG124.jpg' },
+                'LG111': { title: 'LG111 · Tapita cubrerriel', src: 'assets/LG111.jpg' },
+                'LG006': { title: 'LG006 · Hoja horizontal', src: 'assets/LG006.jpg' },
+                'LG050': { title: 'LG050 · Hoja lateral (costado)', src: 'assets/LG050.jpg' },
+                'LG049': { title: 'LG049 · Enganche externo', src: 'assets/LG049.jpg' },
+                'LG048': { title: 'LG048 · Enganche interno', src: 'assets/LG048.jpg' },
+                'BG057': { title: 'BG057 · Contravidrio', src: 'assets/BG057.jpg' }
+            };
+
+            function openProfileModal(code) {
+                const info = profileImages[code];
+                if (!info || !profileModal) return;
+                if (modalTitle) modalTitle.textContent = info.title;
+                if (modalImage) {
+                    modalImage.src = info.src;
+                    modalImage.alt = info.title;
+                }
+                profileModal.classList.add('active');
+            }
+
+            function closeProfileModal() {
+                if (profileModal) profileModal.classList.remove('active');
+            }
+
+            if (modalClose) modalClose.addEventListener('click', closeProfileModal);
+            if (profileModal) {
+                profileModal.addEventListener('click', function(e) {
+                    if (e.target === profileModal) closeProfileModal();
+                });
+            }
+
+            document.querySelectorAll('.mode-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.mode-btn').forEach(function(b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    currentMode = parseInt(btn.dataset.mode, 10);
+                    if (mainTitle) {
+                        mainTitle.textContent = currentMode === 2 ? 'VENTANA GD · 2H' : 'VENTANA GD · 3H';
+                    }
+                    calculate();
+                });
+            });
+
+            function getHardwareList(L, H, mode) {
+                const leaves = mode;
+                const nyl396Qty = leaves === 2 ? 4 : 6;
+                const ruedas = leaves === 2 ? 4 : 6;
+                const vertCount = leaves === 2 ? 4 : 6;
+                const felpaM = ((vertCount * (H - 51)) + (2 * (L - 28))) / 1000;
+
+                return [
+                    { code: 'ROL468', desc: 'Rueda simple (ventana)', qty: ruedas },
+                    { code: 'CON383', desc: 'Contracierre lateral', qty: 2 },
+                    { code: 'NYL396', desc: 'Enguiador deslizante central', qty: nyl396Qty },
+                    { code: 'FEC1036', desc: 'Uñera autom. c/llave 158mm ★ opción', qty: 2 },
+                    { code: 'FEC1038', desc: 'Uñera automática s/llave 158mm ★ opción', qty: 2 },
+                    { code: 'CON448', desc: 'Concha uñera ciega 158mm ★ opción', qty: 2 },
+                    { code: 'NYL395', desc: 'Cortavientos con dreno', qty: 1 },
+                    { code: 'TRA011', desc: 'Traba descentrada (opcional)', qty: 1 },
+                    { code: 'FELPA', desc: 'Felpa 7x5', qty: felpaM.toFixed(3) + ' m' }
+                ];
+            }
+
+            function renderHardware(L, H, mode) {
+                if (!hardwareGrid) return;
+                hardwareGrid.innerHTML = '';
+                getHardwareList(L, H, mode).forEach(function(item) {
+                    const div = document.createElement('div');
+                    div.className = 'hw-item';
+                    div.innerHTML =
+                        '<span class="hw-code">' + item.code + '</span>' +
+                        '<span class="hw-desc">' + item.desc + '</span>' +
+                        '<span class="hw-qty">' + item.qty + '</span>';
+                    hardwareGrid.appendChild(div);
+                });
+            }
+
+            function getItems2H(L, H) {
+                const lg006 = (L - 180) / 2;
+                const lg050 = H - 51;
+                const bgHor = (L - 196) / 2;
+                const bgVer = H - 141;
+                return {
+                    items: [
+                        { code: 'LG044', name: 'Guía superior', measure: L - 28, qty: 1 },
+                        { code: 'LG159', name: 'Guía inferior (ventana)', measure: L - 28, qty: 1 },
+                        { code: 'LG124', name: 'Marco lateral (jamba)', measure: H, qty: 2 },
+                        { code: 'LG111', name: 'Tapita cubrerriel', measure: L - 28, qty: 2 },
+                        { code: 'LG006', name: 'Hoja horizontal', measure: lg006, qty: 4 },
+                        { code: 'LG050', name: 'Hoja lateral', measure: lg050, qty: 2 },
+                        { code: 'LG049', name: 'Enganche externo', measure: H - 51, qty: 2 },
+                        { code: 'LG048', name: 'Enganche interno', measure: H - 51, qty: 2 },
+                        { code: 'BG057', name: 'Contrav. horizontal', measure: bgHor, qty: 4 },
+                        { code: 'BG057', name: 'Contrav. vertical', measure: bgVer, qty: 4 }
+                    ],
+                    bgHor: bgHor, bgVer: bgVer, lg006: lg006, lg050: lg050,
+                    note: '<strong>Fórmulas 2H:</strong> Vidrio = (L−196)/2 × (H−141)<br>BG057 = vidrio · LG006 = (L−180)/2<br>✦ Sin contramarco · Montaje directo a pared / premarco'
+                };
+            }
+
+            function getItems3H(L, H) {
+                const lg006 = (L - 180) / 3;
+                const lg050 = H - 51;
+                const bgHor = (L - 196) / 2;
+                const bgVer = H - 141;
+                return {
+                    items: [
+                        { code: 'LG062', name: 'Guía superior 3 rieles', measure: L - 28, qty: 1 },
+                        { code: 'LG116', name: 'Guía inferior 3 rieles', measure: L - 28, qty: 1 },
+                        { code: 'LG158', name: 'Marco lateral 3 hojas', measure: H, qty: 2 },
+                        { code: 'LG028', name: 'Complemento encastre lateral', measure: H, qty: 2 },
+                        { code: 'LG111', name: 'Tapita cubrerriel', measure: L - 28, qty: 3 },
+                        { code: 'LG006', name: 'Hoja horizontal', measure: lg006, qty: 6 },
+                        { code: 'LG050', name: 'Hoja lateral', measure: lg050, qty: 2 },
+                        { code: 'LG049', name: 'Enganche externo', measure: H - 51, qty: 2 },
+                        { code: 'LG048', name: 'Enganche interno', measure: H - 51, qty: 2 },
+                        { code: 'BG057', name: 'Contrav. horizontal', measure: bgHor, qty: 6 },
+                        { code: 'BG057', name: 'Contrav. vertical', measure: bgVer, qty: 6 }
+                    ],
+                    bgHor: bgHor, bgVer: bgVer, lg006: lg006, lg050: lg050,
+                    note: '<strong>Fórmulas 3H:</strong> Vidrio = (L−196)/2 × (H−141) · 3 uds<br>LG006 = (L−180)/3 · LG062/LG116 · LG158+LG028<br>✦ Sin contramarco · Montaje directo a pared / premarco'
+                };
+            }
+
+            function calculate() {
+                if (!inputWidth || !inputHeight || !tbody) return;
+
+                const L = parseFloat(inputWidth.value);
+                const H = parseFloat(inputHeight.value);
+
+                if (isNaN(L) || isNaN(H) || L < 100 || H < 100) {
+                    alert('Ingresá medidas válidas (mínimo 100 mm)');
+                    return;
+                }
+
+                const data = currentMode === 2 ? getItems2H(L, H) : getItems3H(L, H);
+                const items = data.items;
+                const bgHor = data.bgHor;
+                const bgVer = data.bgVer;
+                const lg006 = data.lg006;
+                const lg050 = data.lg050;
+
+                let totalMetros = 0;
+                tbody.innerHTML = '';
+                items.forEach(function(item) {
+                    const totalM = (item.measure * item.qty) / 1000;
+                    totalMetros += totalM;
+                    const tr = document.createElement('tr');
+                    tr.dataset.code = item.code;
+                    tr.innerHTML =
+                        '<td>' + item.code + '</td>' +
+                        '<td>' + item.name + '</td>' +
+                        '<td>' + item.measure.toFixed(1) + '</td>' +
+                        '<td><span class="badge-qty">' + item.qty + '</span></td>' +
+                        '<td>' + totalM.toFixed(3) + '</td>';
+                    if (profileImages[item.code]) {
+                        tr.style.cursor = 'pointer';
+                        tr.title = 'Ver plano técnico';
+                        tr.addEventListener('click', function() {
+                            openProfileModal(item.code);
+                        });
+                    }
+                    tbody.appendChild(tr);
+                });
+
+                if (glassSize) glassSize.textContent = bgHor.toFixed(1) + ' × ' + bgVer.toFixed(1);
+                if (leafSize) leafSize.textContent = (lg006 + 36).toFixed(1) + ' × ' + lg050.toFixed(1);
+                if (totalMeters) totalMeters.textContent = totalMetros.toFixed(3) + ' m';
+                if (noteContent) noteContent.innerHTML = data.note;
+
+                if (placeholder) placeholder.style.display = 'none';
+                if (resultContent) resultContent.style.display = 'block';
+                if (hardwareSection) hardwareSection.style.display = 'block';
+                if (noteSection) noteSection.style.display = 'block';
+                renderHardware(L, H, currentMode);
+            }
+
+            window.runCalculator = calculate;
+
+            if (calcBtn) calcBtn.addEventListener('click', calculate);
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && document.activeElement &&
+                    (document.activeElement.id === 'inputWidth' || document.activeElement.id === 'inputHeight')) {
+                    calculate();
+                }
+            });
+
+            // Si ya hay sesión y la app está visible, calcular al cargar
+            setTimeout(function() {
+                const app = document.querySelector('.app');
+                if (app && app.style.visibility !== 'hidden' && !document.body.classList.contains('auth-required')) {
+                    calculate();
+                }
+            }, 600);
+        })();
+        </script>
 
 </body>
 </html>
