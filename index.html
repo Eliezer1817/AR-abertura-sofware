@@ -2488,10 +2488,10 @@
         const SUPABASE_URL = 'https://srwvkkndyoimbdhphfcd.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNyd3Zra25keW9pbWJkaHBoZmNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEwNDk1MDAsImV4cCI6MjA3NjYyNTUwMH0.yK4kmZahE7N0o0FpyD3QXtI_c7Mc6_19BcOTgpbI1_U';
 
-        let supabase = null;
+        let supabaseClient = null;
         try {
             if (window.supabase && window.supabase.createClient) {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             } else {
                 console.error('Supabase SDK no cargó');
                 setTimeout(function() {
@@ -2670,7 +2670,7 @@
                 e.preventDefault();
                 clearAuthMessages();
 
-                if (!supabase) {
+                if (!supabaseClient) {
                     showAuthError('Supabase no está disponible. Revisá la conexión.');
                     return;
                 }
@@ -2689,7 +2689,7 @@
                 }
 
                 try {
-                    const { data, error } = await supabase.auth.signInWithPassword({
+                    const { data, error } = await supabaseClient.auth.signInWithPassword({
                         email,
                         password
                     });
@@ -2700,7 +2700,7 @@
                     if (data?.session) {
                         enterSoftware(data.session);
                     } else {
-                        const { data: sessionData } = await supabase.auth.getSession();
+                        const { data: sessionData } = await supabaseClient.auth.getSession();
                         if (sessionData?.session) enterSoftware(sessionData.session);
                         else showAuthError('Login realizado, pero no se recibió una sesión.');
                     }
@@ -2724,7 +2724,7 @@
                 e.preventDefault();
                 clearAuthMessages();
 
-                if (!supabase) {
+                if (!supabaseClient) {
                     showAuthError('Supabase no está disponible. Revisá la conexión.');
                     return;
                 }
@@ -2745,7 +2745,7 @@
 
                 try {
                     console.log('[AUTH] signUp…', email);
-                    const { data, error } = await supabase.auth.signUp({
+                    const { data, error } = await supabaseClient.auth.signUp({
                         email,
                         password,
                         options: {
@@ -2785,7 +2785,7 @@
         async function loginWithOAuth(provider, button) {
             clearAuthMessages();
 
-            if (!supabase) {
+            if (!supabaseClient) {
                 showAuthError('Supabase no está disponible.');
                 return;
             }
@@ -2793,7 +2793,7 @@
             if (button) button.disabled = true;
 
             try {
-                const { data, error } = await supabase.auth.signInWithOAuth({
+                const { data, error } = await supabaseClient.auth.signInWithOAuth({
                     provider,
                     options: {
                         redirectTo: window.location.origin + window.location.pathname,
@@ -2826,7 +2826,7 @@
         if (logoutBtn) {
             logoutBtn.addEventListener('click', async () => {
                 try {
-                    if (supabase) await supabase.auth.signOut();
+                    if (supabaseClient) await supabaseClient.auth.signOut();
                 } finally {
                     if (authOverlay) {
                         authOverlay.style.display = 'block';
@@ -2841,8 +2841,8 @@
         }
 
         // Cambios de sesión: cubre login normal y retorno de OAuth.
-        if (supabase) {
-            supabase.auth.onAuthStateChange((_event, session) => {
+        if (supabaseClient) {
+            supabaseClient.auth.onAuthStateChange((_event, session) => {
                 if (session?.user) enterSoftware(session);
                 else setAuthUI(null);
             });
@@ -2850,13 +2850,13 @@
 
         // Recuperar sesión existente al cargar/reanudar la página.
         (async function restoreSession() {
-            if (!supabase) {
+            if (!supabaseClient) {
                 setAuthUI(null);
                 return;
             }
 
             try {
-                const { data, error } = await supabase.auth.getSession();
+                const { data, error } = await supabaseClient.auth.getSession();
                 if (error) throw error;
                 setAuthUI(data?.session || null);
             } catch (error) {
