@@ -993,6 +993,16 @@
             text-align: center; display: none; margin-bottom: 10px;
         }
         .auth-success.show { display: block; }
+
+        .auth-error.show, .auth-success.show {
+            display: block !important;
+            position: relative;
+            z-index: 20;
+            font-size: 0.85rem !important;
+            font-weight: 600;
+            padding: 12px 14px !important;
+        }
+
         .glass-panel {
             background: rgba(4, 14, 28, 0.12);
             border: 1px solid rgba(0, 220, 255, 0.2);
@@ -2484,6 +2494,13 @@
                 supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             } else {
                 console.error('Supabase SDK no cargó');
+                setTimeout(function() {
+                    var el = document.getElementById('authError');
+                    if (el) {
+                        el.textContent = 'No se cargó Supabase. Revisá la conexión a internet.';
+                        el.classList.add('show');
+                    }
+                }, 500);
             }
         } catch (err) {
             console.error('Supabase init error', err);
@@ -2505,19 +2522,25 @@
         const appleBtn = document.getElementById('appleBtn');
 
         function showAuthError(msg) {
+            const text = msg || 'Ocurrió un error.';
             if (authSuccess) authSuccess.classList.remove('show');
             if (authError) {
-                authError.textContent = msg || 'Ocurrió un error.';
+                authError.textContent = text;
                 authError.classList.add('show');
+                authError.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
+            console.error('[AUTH ERROR]', text);
         }
 
         function showAuthSuccess(msg) {
+            const text = msg || '';
             if (authError) authError.classList.remove('show');
             if (authSuccess) {
-                authSuccess.textContent = msg || '';
+                authSuccess.textContent = text;
                 authSuccess.classList.add('show');
+                authSuccess.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
+            console.log('[AUTH OK]', text);
         }
 
         function clearAuthMessages() {
@@ -2525,27 +2548,36 @@
             if (authSuccess) authSuccess.classList.remove('show');
         }
 
-        // Cambia entre Login y Registro.
+        // Cambia entre Login y Registro (radios + display real).
         window.switchAuthTab = function(target) {
             const showLogin = target === 'login';
+            const tabLoginEl = document.getElementById('tabLogin');
+            const tabRegisterEl = document.getElementById('tabRegister');
+            if (tabLoginEl) tabLoginEl.checked = showLogin;
+            if (tabRegisterEl) tabRegisterEl.checked = !showLogin;
+
             document.querySelectorAll('.auth-tab').forEach(tab => {
                 tab.classList.toggle('active', tab.dataset.tab === target);
             });
-            if (loginForm) loginForm.classList.toggle('active', showLogin);
-            if (registerForm) registerForm.classList.toggle('active', !showLogin);
+
+            if (loginForm) {
+                loginForm.classList.toggle('active', showLogin);
+                loginForm.style.setProperty('display', showLogin ? 'flex' : 'none', 'important');
+            }
+            if (registerForm) {
+                registerForm.classList.toggle('active', !showLogin);
+                registerForm.style.setProperty('display', showLogin ? 'none' : 'flex', 'important');
+            }
             clearAuthMessages();
         };
 
-        // Los labels de las pestañas tienen data-tab. También dejamos soporte
-        // para el cambio mediante los radios existentes.
         document.querySelectorAll('.auth-tab').forEach(tab => {
             tab.addEventListener('click', e => {
                 e.preventDefault();
-                window.switchAuthTab(tab.dataset.tab);
+                window.switchAuthTab(tab.dataset.tab || (tab.classList.contains('tab-register') ? 'register' : 'login'));
             });
         });
 
-        // Si el HTML/CSS usa los radios, sincronizarlos también.
         const tabLogin = document.getElementById('tabLogin');
         const tabRegister = document.getElementById('tabRegister');
         if (tabLogin) tabLogin.addEventListener('change', () => {
@@ -2712,6 +2744,7 @@
                 }
 
                 try {
+                    console.log('[AUTH] signUp…', email);
                     const { data, error } = await supabase.auth.signUp({
                         email,
                         password,
@@ -2721,14 +2754,20 @@
                         }
                     });
 
+                    console.log('[AUTH] signUp result', { data, error });
                     if (error) throw error;
 
                     if (data?.session) {
-                        // Confirmación por email desactivada → entrar directamente.
+                        showAuthSuccess('Cuenta creada. Entrando…');
                         enterSoftware(data.session);
+                    } else if (data?.user) {
+                        // Usuario creado sin sesión (confirm email on, o sesión no devuelta).
+                        showAuthSuccess('Cuenta creada. Ahora tocá Ingresar con el mismo email y contraseña.');
+                        window.switchAuthTab('login');
+                        const le = document.getElementById('loginEmail');
+                        if (le) le.value = email;
                     } else {
-                        // Supabase exige confirmar email antes de crear una sesión.
-                        showAuthSuccess('Cuenta creada. Confirmá tu email y luego volvé a ingresar.');
+                        showAuthError('Supabase no devolvió usuario. Revisá Authentication → Users.');
                     }
                 } catch (error) {
                     console.error('Register error:', error);
